@@ -2,4 +2,4 @@
 
 This repository is created with the aim of synchronizing and stacking datasets and scripts for Climate Peace.
 
-Research group based in the Architectural Association
+Research group based at the Architectural Association
