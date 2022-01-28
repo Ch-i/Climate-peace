@@ -1,0 +1,26 @@
+This folder will contain the steps required to install the JS to Py translator produced with a jupyter notebook
+
+The translator runs on Jupyter notebook
+
+pip install jupyterlab
+
+and then to install the jupyter notebook
+
+pip install notebook
+
+
+https://github.com/Ch-i/geemap
+To install everything related to the previous folder we run the command :
+It will install Pypi - conda 
+pip install git+https://github.com/giswqs/geemap
+
+
+
+afer installing all this. Open a terminal or powershell and run the command:
+
+jupyter notebook
+
+A pop up on a web browser will be triggered.
+search for the downloaded geemap folder
+
+documents>geemap>examples>notebook>Example 15
