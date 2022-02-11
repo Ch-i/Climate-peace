@@ -1,5 +1,9 @@
 This folder will contain the steps required to install the JS to Py translator produced with a jupyter notebook
 
+install pip 
+install conda
+
+
 The translator runs on Jupyter notebook
 
 pip install jupyterlab
