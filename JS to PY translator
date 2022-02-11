@@ -14,7 +14,10 @@ To install everything related to the previous folder we run the command :
 It will install Pypi - conda 
 pip install git+https://github.com/giswqs/geemap
 
+pip install geemap
 
+
+if pip is giving an error try pip3
 
 afer installing all this. Open a terminal or powershell and run the command:
 
