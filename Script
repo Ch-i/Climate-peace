@@ -1,1 +1,380 @@
 This folder will contain all the scripts for Climate Peace
+AA Dip4—Climate Peace
+
+Remote Sensing 
+
+https://developers.google.com/earth-engine
+
+
+Earth Engine objects and methods
+https://developers.google.com/earth-engine/guides/objects_methods_overview
+
+Earth Engine Data Catalogue
+
+A planetary-scale platform for Earth science data & analysis
+Earth Engine's public data archive includes more than forty years of historical imagery and scientific datasets, updated and expanded daily.
+https://developers.google.com/earth-engine/datasets/
+
+Earth Engine Code editor
+
+https://code.earthengine.google.com
+
+
+Earth Engine Codes
+
+Google Earth Engine
+New Script https://code.earthengine.google.com/se
+Link to DataCatalog: https://developers.google.com/earth-engine/datasets/
+
+
+Basics
+    //add layer
+    Map.addLayer(image);
+    //print
+
+
+Image to drive
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: name,
+      description: 'name_1',
+      scale: 50,
+      region: geometry,
+      maxPixels: 1e10
+    });
+
+
+Video to drive
+    // export video to drive.
+    Export.video.toDrive({
+      collection: name,
+      description: 'name_1',
+      dimensions: 1920,
+      framesPerSecond: 10,
+      region: polygon
+    });
+
+
+8 bit
+    var 8bit = dataset.visualize({bands: ['R', 'G', 'B']});
+
+
+Image collection reduction 
+
+https://developers.google.com/earth-engine/reducers_intro
+
+    var mosaic = image.mosaic();
+    
+    var minimum = image.min();
+    var maximum = image.max();
+    var extrema = image.reduce(ee.Reducer.minMax());
+    
+    var mean = image.mean();
+    var median = image.median();
+
+
+Image reduction
+
+https://developers.google.com/earth-engine/reducers_image
+
+    var reduced = dataset.reduce(ee.Reducer.max());
+Sentinel1
+Single image export
+    //add Sentinel1 image collection
+    var dataset = ee.ImageCollection('COPERNICUS/S1_GRD')
+            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV'))
+            .filter(ee.Filter.eq('instrumentMode', 'IW'))
+            .select('VV')
+            .filterDate('2019-03-18', '2019-03-20')
+           .filterBounds(geometry)
+            .map(function(image) {
+              var edge = image.lt(-30.0);
+              var maskedImage = image.mask().and(edge.not());
+              return image.updateMask(maskedImage);
+            });
+    
+    //ascending and descending filter
+    var desc = dataset.filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'));
+    var asc = dataset.filter(ee.Filter.eq('orbitProperties_pass', 'ASCENDING'));
+    var mosaic = dataset.mean();
+    
+    //visParams
+    var visParams = {min: -15, max: -5, gamma: 1.5,};
+    
+    //add layer
+    Map.addLayer(desc, visParams, 'Sentinel1_desc');
+    Map.addLayer(asc, visParams, 'Sentinel1_asc');
+    print(desc);
+    print(asc);
+    
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: mosaic,
+      description: 'Sentinel1_Sahara_mosaic1',
+      scale: 1000,
+      region: geometry,
+      maxPixels: 1e13
+    });
+
+
+Image timeseries
+    //add Sentinel1 image collection
+    var imgVV = ee.ImageCollection('COPERNICUS/S1_GRD')
+            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+            .filter(ee.Filter.eq('instrumentMode', 'IW'))
+            .select('VV')
+            .filterDate('2018-10-10', '2018-10-20')
+            .filterBounds(geometry)
+            .map(function(image) {
+              var edge = image.lt(-30.0);
+              var maskedImage = image.mask().and(edge.not());
+              return image.updateMask(maskedImage);
+            });
+    
+    //ascending and descending filter (optional)
+    //var desc = imgVV.filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'));
+    //var asc = imgVV.filter(ee.Filter.eq('orbitProperties_pass', 'ASCENDING'));
+    
+    //create a list for possible dates (years, months, days)
+    var day = ee.List.sequence(01, 30);
+    var month = ee.List.sequence(1, 12);
+    var year = ee.List.sequence(2015, 2018);
+    
+    //available images for each day
+    var filter_days = ee.ImageCollection.fromImages(
+      year.map(function(y) {
+        return month.map(function (m) {
+          return day.map(function (d) {
+           return imgVV
+           .filter(ee.Filter.calendarRange(y, y, 'year'))
+           .filter(ee.Filter.calendarRange(m, m, 'month'))
+           .filter(ee.Filter.calendarRange(d, d, 'day_of_month'))
+           .max()
+           .set('day_of_month', d).set('month', m).set('year', y);
+          });
+        });
+     }).flatten());
+     
+    //count number of bands in each image, if 0 remove from image collection
+    var filter_null = filter_days
+        .map(function(image) {
+          return image.set('count', image.bandNames().length());
+        })
+        .filter(ee.Filter.eq('count', 1));
+    
+    //visualise the collection
+    var collection_filtered = filter_null.map(function(image){
+      return image.visualize({min: -14, max: -1});
+    });
+    
+    //export images of collection
+    var ExportCol = function(col, folder, scale, type,
+                             nimg, maxPixels, region) {
+        type = type || "int";
+        nimg = nimg || 500;
+        scale = scale || 50;
+        maxPixels = maxPixels || 1e13;
+        region = geometry;
+        
+        var colList = col.toList(nimg);
+        var n = colList.size().getInfo();
+        
+        for (var i = 0; i < n; i++) {
+          var img = ee.Image(colList.get(i));
+          var id = img.id().getInfo();
+          region = region;
+          
+          var imgtype = {"float":img.toFloat(), 
+                         "byte":img.toByte(), 
+                         "int":img.toInt(),
+                         "double":img.toDouble()
+                        }
+          
+          Export.image.toDrive({
+            image:imgtype[type],
+            description: id,
+            folder: folder,
+            fileNamePrefix: id,
+            region: region,
+            scale: scale,
+            maxPixels: maxPixels});
+        }
+      };
+    
+    //set collection
+    ExportCol(collection_filtered, 'users/mvschob/GEE');
+    
+    //addLayer and print 
+    Map.addLayer(collection_filtered);
+    print(collection_filtered);
+
+
+
+Sentinel 2
+Level 1-C
+    // Map the function over one year of data and take the median.
+    // Load Sentinel-2 TOA reflectance data.
+    var dataset = ee.ImageCollection('COPERNICUS/S2')
+                      .filterBounds(geometry)
+                      .filterDate('2019-07-25', '2019-07-26')
+                      //.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+                      .select(['B4', 'B3', 'B2'])
+                      .median();
+    
+    var rgbVis = {min: 0, max: 2000};
+    
+    Map.addLayer(dataset, rgbVis, 'RGB');
+    
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: dataset,
+      description: '190226_Sentinel2_01',
+      scale: 10,
+      region: geometry,
+      maxPixels: 1e10
+    });
+
+
+
+Multi Temporal
+     // Map the function over one year of data and take the median.
+    // Load Sentinel-2 TOA reflectance data.
+    var dataset = ee.ImageCollection('COPERNICUS/S2_SR')
+                      .filterBounds(geometry)
+                      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+                      .select(['WVP']);
+    
+    var time1 = ee.Filter.date('2019-01-01', '2019-02-01');
+    var time2 = ee.Filter.date('2019-02-01', '2019-03-01');
+    var time3 = ee.Filter.date('2019-03-01', '2019-04-01');
+    
+    var merge = ee.Image.cat(
+      dataset.filter(time1).mean(), 
+      dataset.filter(time2).mean(),
+      dataset.filter(time3).mean());
+    7
+    Map.addLayer(merge);
+    
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: merge,
+      description: '190530_Sentinel2_01',
+      scale: 10,
+      region: geometry,
+      maxPixels: 1e10
+    });
+
+
+
+
+
+LANDSAT
+Landsat 8, cloud-free
+    // Load a raw Landsat 8 ImageCollection for a single year.
+    var collection = ee.ImageCollection('LANDSAT/LC08/C01/T1')
+        .filterDate('2016-01-01', '2018-12-31');
+    
+    // Create a cloud-free composite with default parameters.
+    var composite = ee.Algorithms.Landsat.simpleComposite(collection);
+    
+    // Create a cloud-free composite with custom parameters for
+    // cloud score threshold and percentile.
+    var customComposite = ee.Algorithms.Landsat.simpleComposite({
+      collection: collection,
+      percentile: 75,
+      cloudScoreRange: 5});
+    
+    // Display the composites.
+    Map.addLayer(composite, {bands: ['B4', 'B3', 'B2'], max: 128}, 'TOA composite');
+    Map.addLayer(customComposite, {bands: ['B4', 'B3', 'B2'], max: 128},
+        'Custom TOA composite');
+    
+    // Export the image, specifying scale and region.
+    Export.image.toDrive({
+      image: customComposite,
+      description: 'Landsat_Hawaii1',
+      scale: 15,
+      region: geometry,
+      maxPixels: 1e10});
+
+
+
+Landsat, multi-temporal
+
+Image Export
+
+    //rename L8 bands in order to create one seamless composite with L5
+    function renameBandsOLI(image) {
+        var bands = ['B4', 'B3', 'B2'];
+        var new_bands = ['B3', 'B2', 'B1'];
+        return image.select(bands).rename(new_bands);}
+    
+    //Load image collections
+    var L4 = ee.ImageCollection("LANDSAT/LT04/C01/T1_SR");
+    var L5 = ee.ImageCollection("LANDSAT/LT05/C01/T1_SR");
+    var L7 = ee.ImageCollection("LANDSAT/LE07/C01/T1_SR");
+    var L8 = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR").map(renameBandsOLI);
+    var collection = L4.merge(L5.merge(L7.merge(L8)));
+    
+    var collection_filtered = collection
+        //.filterBounds(geometry)
+        //.filterDate('1986-01-01', '1994-01-01')
+        .filter(ee.Filter.calendarRange(2,11,'month'))
+        .filter(ee.Filter.lt('CLOUD_COVER', 7))
+        .select(['B7']);
+    
+    var image_01 = collection_filtered
+        .filterDate('1982-01-01', '1992-01-01')
+        //.select(['B7'])
+        .median();
+    
+    var image_02 = collection_filtered
+        .filterDate('1997-01-01', '2002-01-01')
+        //.select(['B7'])
+        .median();
+    
+    var image_03 = collection_filtered
+        .filterDate('2017-01-01', '2020-01-01')
+        //.select(['B7'])
+        .median();
+    
+    var rgb = ee.Image.cat(image_01, image_02, image_03);
+    var rgb2 = rgb.multiply(-1);
+    
+    var vizParams = {min: 400, max: 2500, gamma: [1]};
+    var vizParams2 = {min: -4200, max: -200, gamma: [0.4, 0.4, 0.4]};
+    
+    print(rgb);
+    //Map.setCenter(113.32, 22.75, 10);
+    Map.addLayer(rgb, vizParams);
+    
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: rgb,
+      description: '190128_Tibet_multitemp_03',
+      scale: 100,
+      region: geometry,
+      maxPixels: 1e13});
+
+
+
+Digital Elevation Model DEM DSM
+ETOPO1
+    var dataset = ee.Image('NOAA/NGDC/ETOPO1');
+    var elevation = dataset.select('bedrock');
+    var elevationVis = {
+      min: -7000.0,
+      max: 3000.0,
+      palette: ['011de2', 'afafaf', '3603ff', 'fff477', 'b42109'],
+    };
+    
+    Map.addLayer(elevation, elevationVis, 'Elevation');
+    
+    //export geotiff image to drive.
+    Export.image.toDrive({
+      image: elevation,
+      description: '190304_EtopoElevation_NDWITest_01',
+      scale: 500,
+      region: geometry,
+      maxPixels: 1e13
+    });
